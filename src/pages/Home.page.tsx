@@ -1,10 +1,12 @@
 /* eslint-disable no-console */
-import { useState } from 'react';
-import ChatPage from '@/components/ChatPage_with_references';
+import { useEffect, useState } from 'react';
+import ChatPage from '@/components/ChatPage';
 import EncuestaPage from '@/components/EncuestaPage';
-import { DatosIntro } from '@/components/DatosIntro';
 import { MenuOpciones } from '@/components/MenuOpciones';
-import { Welcome } from '@/components/Welcome';
+import SurveyAnonIntro from '@/components/SurveyAnonIntro';
+import Welcome from '@/components/Welcome';
+
+type View = 'welcome' | 'surveyIntro' | 'menu' | 'encuesta' | 'agente' | 'casos' | 'uso';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -14,41 +16,55 @@ function Placeholder({ title }: { title: string }) {
   );
 }
 
-type View = 'welcome' | 'datos' | 'menu' | 'encuesta' | 'agente' | 'casos' | 'uso';
-
 export function HomePage() {
   const [view, setView] = useState<View>('welcome');
   const [userId, setUserId] = useState<string | null>(null);
   const [shortId, setShortId] = useState<string | null>(null);
 
+  // Cuando entramos al intro de encuesta, saltamos al menú a los 5s
+  useEffect(() => {
+    if (view !== 'surveyIntro') {
+      return;
+    }
+    const t = setTimeout(() => setView('menu'), 5000);
+    return () => clearTimeout(t);
+  }, [view]);
+
   if (view === 'welcome') {
-    return <Welcome onStart={() => setView('datos')} />;
+    // IMPORTANTE: Welcome debe llamar onDone(data, uid, shortId) al enviar
+    return (
+      <Welcome
+        onDone={(_, uid, sid) => {
+          setUserId(uid);
+          setShortId(sid);
+          setView('surveyIntro');
+        }}
+      />
+    );
   }
 
-  if (view === 'datos') {
+  if (view === 'surveyIntro') {
+    // Pantalla “La encuesta es anónima…”
+    return <SurveyAnonIntro onNext={() => setView('menu')} />;
+  }
+
+  if (view === 'menu') {
+    return <MenuOpciones onSelect={(k) => setView(k)} />;
+  }
+
+  if (view === 'encuesta') {
     return (
-      <DatosIntro
-        onSubmit={(data, uid, sId) => {
-          console.log('Perfil guardado:', { uid, shortId: sId, ...data });
-          setUserId(uid);
-          setShortId(sId);
+      <EncuestaPage
+        onSubmit={(answers) => {
+          console.log('OK', answers, { userId, shortId });
           setView('menu');
         }}
       />
     );
   }
 
-  if (view === 'menu') {
-    return <MenuOpciones onSelect={(k) => setView(k)} backgroundSrc="/fondo_2.png" />;
-  }
-
-  if (view === 'encuesta') {
-    return <EncuestaPage onSubmit={(answers) => console.log('OK', answers)} />;
-  }
-
   if (view === 'agente') {
-    // El ChatPage cerrará sesión y volverá aquí vía onTimeout cuando haya inactividad
-    return <ChatPage mode="agente" onTimeout={() => setView('welcome')} />;
+    return <ChatPage mode="agente" />;
   }
 
   if (view === 'casos') {

@@ -58,7 +58,7 @@ type FollowPack = {
   opciones: FollowUpOption[];
 };
 
-export default function ChatPage({
+export default function ChatPageOld({
   mode,
   backgroundSrc = '/fondo_2.png',
   logoSrc = '/LOGOS_GEN.iality_web-15.svg',

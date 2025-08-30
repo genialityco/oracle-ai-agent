@@ -60,7 +60,7 @@ export const SURVEY: Question[] = [
   {
     section: 'Bloque A: Estrategia y Propósito',
     id: 'A1',
-    text: 'Existe una visión clara y compartida en la empresa sobre cómo ...icial puede generar valor para los clientes y las operaciones.',
+    text: 'Existe una visión clara y compartida en la empresa sobre cómo inteligencia artificial puede generar valor para los clientes y las operaciones.',
     type: 'likert_1_5',
     options: ['1', '2', '3', '4', '5'],
   },

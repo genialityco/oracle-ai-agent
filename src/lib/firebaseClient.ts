@@ -13,6 +13,8 @@ import {
   doc,
   setDoc,
   serverTimestamp,
+  collection,
+  addDoc,            // 👈 importa addDoc
 } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -30,35 +32,26 @@ export const db = getFirestore(app);
 
 /** Asegura login anónimo y devuelve el user */
 export const ensureAnonAuth = async (): Promise<User> => {
-  // persistencia local para no perder la sesión al recargar
   await setPersistence(auth, browserLocalPersistence);
-
   return new Promise<User>((resolve, reject) => {
     const unsub = onAuthStateChanged(
       auth,
       async (user) => {
         if (user) {
-          unsub();
-          resolve(user);
+          unsub(); resolve(user);
         } else {
           try {
             const cred = await signInAnonymously(auth);
-            unsub();
-            resolve(cred.user);
-          } catch (e) {
-            unsub();
-            reject(e);
-          }
+            unsub(); resolve(cred.user);
+          } catch (e) { unsub(); reject(e); }
         }
       },
-      (err) => {
-        reject(err);
-      }
+      (err) => reject(err)
     );
   });
 };
 
-/** Guarda/actualiza el perfil básico del usuario en Firestore */
+/** Guarda/actualiza el perfil básico del usuario */
 export const saveUserIntro = async (
   uid: string,
   data: { nombre: string; email: string; rol: string }
@@ -72,9 +65,34 @@ export const saveUserIntro = async (
       shortId,
       ...data,
       updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp(), // si existe se mantiene el primero por reglas de merge del server
+      createdAt: serverTimestamp(),
     },
     { merge: true }
   );
   return { uid, shortId };
+};
+
+/** Guarda una respuesta de encuesta */
+export const saveSurveyResponse = async (params: {
+  uid: string;
+  answers: Record<string, string>;
+  progress: number;            // 0..100
+  step: number;                // índice de sección actual (0-based)
+  totalSections: number;
+  completed: boolean;          // true si envió
+}) => {
+  const { uid, answers, progress, step, totalSections, completed } = params;
+
+  const ref = await addDoc(collection(db, 'surveyResponsesOracle'), {
+    uid,
+    answers,
+    progress,
+    step,
+    totalSections,
+    completed,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return { id: ref.id };
 };

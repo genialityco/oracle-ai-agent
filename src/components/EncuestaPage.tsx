@@ -1,43 +1,51 @@
+/* eslint-disable no-console */
+/* eslint-disable no-empty */
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  Divider,
-  Group,
-  Progress,
-  Stack,
-  Text,
-  Textarea,
-  Title,
-} from '@mantine/core';
 import { SURVEY, type Question } from '../surveySchema';
+import { ensureAnonAuth, saveSurveyResponse } from '@/lib/firebaseClient';
 
 type Props = { onSubmit?: (answers: Record<string, string>) => void; backgroundSrc?: string };
 const DRAFT_KEY = 'encuestaDraftV1';
 
-export default function EncuestaPage({ onSubmit, backgroundSrc = '/fondo_2.png' }: Props) {
+export default function EncuestaPage({ onSubmit, backgroundSrc = '/fondo_home.png' }: Props) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, true>>({});
+  const [uid, setUid] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Auth anónima para poder guardar
+  useEffect(() => {
+    (async () => {
+      try {
+        const user = await ensureAnonAuth();
+        setUid(user.uid);
+      } catch (e) {
+        // opcional: manejar error de auth
+        console.error(e);
+      }
+    })();
+  }, []);
 
   const sections = useMemo(() => {
     const map = new Map<string, Question[]>();
-    for (const q of SURVEY) {(map.get(q.section) ?? map.set(q.section, []).get(q.section)!).push(q);}
+    for (const q of SURVEY) {
+      (map.get(q.section) ?? map.set(q.section, []).get(q.section)!).push(q);
+    }
     return Array.from(map.entries());
   }, []);
 
+  // draft local
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {setAnswers(JSON.parse(raw));}
-    } catch { /* empty */ }
+    } catch {}
   }, []);
   useEffect(() => {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(answers));
-    } catch { /* empty */ }
+    } catch {}
   }, [answers]);
 
   const required = (q: Question) => q.type !== 'long_text';
@@ -51,7 +59,7 @@ export default function EncuestaPage({ onSubmit, backgroundSrc = '/fondo_2.png' 
   const handle = (id: string, value: string) => {
     setAnswers((a) => ({ ...a, [id]: value }));
     if (errors[id]) {
-      const { [id]: _, ...rest } = errors;
+      const { [id]: _omit, ...rest } = errors;
       setErrors(rest);
     }
   };
@@ -59,10 +67,7 @@ export default function EncuestaPage({ onSubmit, backgroundSrc = '/fondo_2.png' 
   const validateSection = (index: number) => {
     const [, qs] = sections[index];
     const missing = qs.filter((q) => required(q) && !answers[q.id]);
-    if (!missing.length) {
-      setErrors({});
-      return true;
-    }
+    if (!missing.length) { setErrors({}); return true; }
     const next: Record<string, true> = {};
     missing.forEach((q) => (next[q.id] = true));
     setErrors(next);
@@ -73,183 +78,312 @@ export default function EncuestaPage({ onSubmit, backgroundSrc = '/fondo_2.png' 
     if (validateSection(step)) {setStep((s) => Math.min(s + 1, sections.length - 1));}
   };
   const prev = () => setStep((s) => Math.max(0, s - 1));
-  const submit = () => {
+
+  const submit = async () => {
     if (!validateSection(step)) {return;}
-    onSubmit?.(answers);
     try {
-      localStorage.removeItem(DRAFT_KEY);
-    } catch { /* empty */ }
+      setSaving(true);
+      const userId = uid ?? (await ensureAnonAuth()).uid;
+      await saveSurveyResponse({
+        uid: userId,
+        answers,
+        progress: 100,
+        step,
+        totalSections: sections.length,
+        completed: true,
+      });
+      onSubmit?.(answers);
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    } finally {
+      setSaving(false);
+    }
   };
 
   const bg = `url('${backgroundSrc}') center / cover no-repeat`;
 
-  // ---------- RENDER FUNCTIONS (no componentes) ----------
+  // ---------- estilos base (HTML nativo) ----------
+  const pageStyle: React.CSSProperties = {
+    position: 'relative',
+    minHeight: '100dvh',
+    width: '100%',
+    background: bg,
+    color: '#FFFFFF',
+    padding:
+      'env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)',
+  };
+
+  // Encabezado más compacto y pegado a la izquierda (coherente con otras vistas)
+  const headerWrap: React.CSSProperties = {
+    padding: 'clamp(40px, 8vmin, 120px) clamp(16px, 5vmin, 120px) 0',
+    textShadow: '0 1px 1px rgba(0,0,0,0.5)',
+    maxWidth: 'min(92vw, 1100px)',
+  };
+
+  const titleStyle: React.CSSProperties = {
+    margin: 0,
+    fontWeight: 800,
+    lineHeight: 1.04,
+    fontSize: 'clamp(30px, 7.2vmin, 70px)',
+  };
+
+  const subtitleStyle: React.CSSProperties = {
+    marginTop: 'clamp(6px, 1vmin, 12px)',
+    opacity: 0.92,
+    fontSize: 'clamp(16px, 3.2vmin, 40px)',
+  };
+
+  const metaRowStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginTop: 'clamp(10px, 2vmin, 22px)',
+    marginRight: 'clamp(12px, 4vmin, 48px)',
+    fontSize: 'clamp(12px, 2.4vmin, 28px)',
+    opacity: 0.9,
+  };
+
+  const progressBarWrap: React.CSSProperties = {
+    marginTop: 'clamp(8px, 1.2vmin, 14px)',
+    width: '100%',
+    height: 'clamp(10px, 1.6vmin, 18px)',
+    borderRadius: '999px',
+    background: 'rgba(255,255,255,0.3)',
+    overflow: 'hidden',
+  };
+  const progressBarFill: React.CSSProperties = {
+    width: `${progress}%`,
+    height: '100%',
+    background: '#FFD84D',
+  };
+
+  const cardStyle: React.CSSProperties = {
+    margin: 'clamp(10px, 2vmin, 20px) clamp(16px, 5vmin, 120px) clamp(40px, 6vmin, 80px)',
+    padding: 'clamp(14px, 2.2vmin, 26px) clamp(16px, 2.6vmin, 30px)',
+    background: 'rgba(255,255,255,0.96)',
+    borderRadius: 14,
+    color: '#2F3537',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+    maxWidth: 'min(92vw, 1100px)',
+  };
+
+  const sectionTitleStyle: React.CSSProperties = {
+    fontWeight: 700,
+    margin: 0,
+    marginBottom: 'clamp(8px, 1.4vmin, 16px)',
+    fontSize: 'clamp(18px, 3.2vmin, 40px)',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontWeight: 600,
+    fontSize: 'clamp(16px, 3.2vmin, 40px)',
+    lineHeight: 1.25,
+    marginBottom: 'clamp(6px, 1vmin, 12px)',
+  };
+
+  const helpErrorStyle: React.CSSProperties = {
+    marginTop: 'clamp(4px, 0.8vmin, 10px)',
+    color: '#c92a2a',
+    fontSize: 'clamp(12px, 2.2vmin, 26px)',
+  };
+
+  const chipRow: React.CSSProperties = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 'clamp(8px, 1.4vmin, 14px)',
+  };
+
+  const chipBase: React.CSSProperties = {
+    padding: 'clamp(8px, 1.6vmin, 16px) clamp(12px, 2.2vmin, 22px)',
+    fontSize: 'clamp(14px, 2.8vmin, 34px)',
+    fontWeight: 700,
+    background: '#fff',
+    color: '#2F3537',
+    cursor: 'pointer',
+    marginLeft: '5px',
+    border: '1px solid #D1D5DB',
+  };
+
+  const textareaStyle: React.CSSProperties = {
+    width: '100%',
+    minHeight: 'clamp(90px, 16vmin, 200px)',
+    fontSize: 'clamp(14px, 2.6vmin, 32px)',
+    lineHeight: 1.4,
+    padding: 'clamp(10px, 1.6vmin, 18px)',
+    borderRadius: 12,
+    border: '1px solid #D1D5DB',
+    outline: 'none',
+    resize: 'vertical',
+  };
+
+  const actionsRow: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 'clamp(10px, 2vmin, 24px)',
+    marginTop: 'clamp(14px, 2.2vmin, 28px)',
+    flexWrap: 'wrap',
+  };
+
+  const btnSecondary: React.CSSProperties = {
+    background: '#FFFFFF',
+    color: '#2F3537',
+    border: '1px solid #D1D5DB',
+    borderRadius: 'clamp(8px, 1.2vmin, 14px)',
+    fontWeight: 800,
+    fontSize: 'clamp(14px, 2.8vmin, 34px)',
+    padding: 'clamp(10px, 2vmin, 20px) clamp(16px, 3vmin, 32px)',
+    cursor: 'pointer',
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    background: '#FFD84D',
+    color: '#121212',
+    border: 'none',
+    borderRadius: 'clamp(10px, 1.4vmin, 16px)',
+    fontWeight: 900,
+    fontSize: 'clamp(14px, 2.8vmin, 34px)',
+    padding: 'clamp(10px, 2vmin, 20px) clamp(16px, 3vmin, 32px)',
+    boxShadow: '0 6px 16px rgba(0,0,0,0.22)',
+    cursor: 'pointer',
+  };
+
+  // -------- RENDER nativo --------
   const renderLikert = (q: Extract<Question, { type: 'likert_1_5' }>) => (
-    <Stack key={q.id} gap={6}>
-      <Text style={{ fontWeight: 600 }}>
-        {q.text}{' '}
-      </Text>
-      <Chip.Group value={answers[q.id] ?? ''} onChange={(v) => handle(q.id, String(v))}>
-        <Group gap="xs">
-          {['1', '2', '3', '4', '5'].map((v) => (
-            <Chip key={v} value={v} radius="md" variant="light">
+    <div key={q.id} style={{ marginBottom: 'clamp(10px, 2vmin, 20px)' }}>
+      <label style={labelStyle}>{q.text}</label>
+      <div role="group" aria-label={q.text} style={chipRow}>
+        {['1', '2', '3', '4', '5'].map((v) => {
+          const active = answers[q.id] === v;
+          return (
+            <button
+              key={v}
+              type="button"
+              style={{
+                ...chipBase,
+                background: active ? '#2F3537' : '#fff',
+                color: active ? '#fff' : '#2F3537',
+                borderColor: active ? '#2F3537' : '#D1D5DB',
+              }}
+              aria-pressed={active}
+              onClick={() => handle(q.id, v)}
+            >
               {v}
-            </Chip>
-          ))}
-        </Group>
-      </Chip.Group>
-      {errors[q.id] && (
-        <Text size="xs" c="red.7">
-          Selecciona una opción.
-        </Text>
-      )}
-    </Stack>
+            </button>
+          );
+        })}
+      </div>
+      {errors[q.id] && <div style={helpErrorStyle}>Selecciona una opción.</div>}
+    </div>
   );
 
   const renderSingle = (q: Extract<Question, { type: 'single_choice' }>) => (
-    <Stack key={q.id} gap={6}>
-      <Text style={{ fontWeight: 600 }}>
-        {q.text}{' '}
-      </Text>
-      <Chip.Group value={answers[q.id] ?? ''} onChange={(v) => handle(q.id, String(v))}>
-        <Group gap="xs">
-          {q.options.map((opt) => (
-            <Chip key={opt} value={opt} radius="md" variant="light">
+    <div key={q.id} style={{ marginBottom: 'clamp(10px, 2vmin, 20px)' }}>
+      <label style={labelStyle}>{q.text}</label>
+      <div role="group" aria-label={q.text} style={chipRow}>
+        {q.options.map((opt) => {
+          const active = answers[q.id] === opt;
+          return (
+            <button
+              key={opt}
+              type="button"
+              style={{
+                ...chipBase,
+                background: active ? '#2F3537' : '#fff',
+                color: active ? '#fff' : '#2F3537',
+                borderColor: active ? '#2F3537' : '#D1D5DB',
+              }}
+              aria-pressed={active}
+              onClick={() => handle(q.id, opt)}
+            >
               {opt}
-            </Chip>
-          ))}
-        </Group>
-      </Chip.Group>
-      {errors[q.id] && (
-        <Text size="xs" c="red.7">
-          Selecciona una opción.
-        </Text>
-      )}
-    </Stack>
+            </button>
+          );
+        })}
+      </div>
+      {errors[q.id] && <div style={helpErrorStyle}>Selecciona una opción.</div>}
+    </div>
   );
 
   const renderLong = (q: Extract<Question, { type: 'long_text' }>) => (
-    <Stack key={q.id} gap={6}>
-      <Text style={{ fontWeight: 600 }}>{q.text}</Text>
-      <Textarea
-        autosize
-        minRows={3}
+    <div key={q.id} style={{ marginBottom: 'clamp(10px, 2vmin, 20px)' }}>
+      <label style={labelStyle}>{q.text}</label>
+      <textarea
         value={answers[q.id] ?? ''}
         onChange={(e) => handle(q.id, e.currentTarget.value)}
         placeholder="Escribe tu respuesta…"
+        style={textareaStyle}
       />
-    </Stack>
+    </div>
   );
-  // ------------------------------------------------------
 
   return (
-    <Box
-      component="section"
-      style={{
-        position: 'relative',
-        minHeight: '100dvh',
-        width: '100%',
-        background: bg,
-        padding:
-          'env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)',
-        color: '#fff',
-      }}
-    >
-      {/* Encabezado + progreso */}
-      <Box style={{ padding: '56px 18px 0' }}>
-        <Title
-          order={1}
-          style={{ lineHeight: 1.15, margin: 0, fontSize: 'clamp(22px, 5.2vw, 34px)' }}
-        >
-          Empecemos con tus datos
-        </Title>
-        <Text style={{ opacity: 0.9, marginTop: 6 }}>Solo tomará un momento.</Text>
-        <Box style={{ marginTop: 12, marginRight: 18 }}>
-          <Group gap="sm" justify="space-between" align="center">
-            <Text size="sm" c="gray.2">
-              Progreso: {answeredRequired}/{totalRequired}
-            </Text>
-            <Text size="sm" c="gray.2">
-              Sección {step + 1} de {sections.length}
-            </Text>
-          </Group>
-          <Progress value={progress} mt={6} />
-        </Box>
-      </Box>
+    <section style={pageStyle}>
+      {/* Encabezado + progreso (SIN barra inferior) */}
+      <div style={headerWrap}>
+        <h1 style={titleStyle}>Empecemos con tus datos</h1>
+        <p style={subtitleStyle}>Solo tomará un momento.</p>
+
+        <div style={metaRowStyle}>
+          <span>Progreso: {answeredRequired}/{totalRequired}</span>
+          <span>Sección {step + 1} de {sections.length}</span>
+        </div>
+        <div style={progressBarWrap}>
+          <div style={progressBarFill} />
+        </div>
+      </div>
 
       {/* Tarjeta de sección */}
-      <Box
-        style={{
-          margin: '16px 18px 96px',
-          padding: 16,
-          background: 'rgba(255,255,255,0.95)',
-          borderRadius: 14,
-          color: '#2F3537',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-        }}
-      >
-        <Text style={{ fontWeight: 800, marginBottom: 8 }}>{sections[step][0]}</Text>
+      <div style={cardStyle}>
+        <h2 style={sectionTitleStyle}>{sections[step][0]}</h2>
 
-        <Stack gap="md">
+        <div style={{ display: 'grid', gap: 'clamp(12px, 2.2vmin, 28px)' }}>
           {sections[step][1].map((q) =>
             q.type === 'single_choice'
               ? renderSingle(q)
               : q.type === 'likert_1_5'
-                ? renderLikert(q)
-                : renderLong(q)
+              ? renderLikert(q)
+              : renderLong(q)
           )}
-        </Stack>
+        </div>
 
-        <Divider my="md" />
+        <hr style={{ margin: 'clamp(12px, 2vmin, 22px) 0', border: 0, borderTop: '1px solid #E5E7EB' }} />
 
-        <Group justify="space-between">
-          <Button variant="default" onClick={prev} disabled={step === 0}>
+        <div style={actionsRow}>
+          <button type="button" onClick={prev} disabled={step === 0} style={{ ...btnSecondary, opacity: step === 0 ? 0.6 : 1 }}>
             Anterior
-          </Button>
+          </button>
+
           {step < sections.length - 1 ? (
-            <Button
-              onClick={next}
-              style={{ background: '#2F3537', color: '#fff', fontWeight: 700 }}
-            >
+            <button type="button" onClick={next} style={btnPrimary}>
               Siguiente
-            </Button>
+            </button>
           ) : (
-            <Button
-              onClick={submit}
-              style={{ background: '#2F3537', color: '#fff', fontWeight: 700 }}
-            >
-              Enviar respuestas
-            </Button>
+            <button type="button" onClick={submit} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Guardando…' : 'Enviar respuestas'}
+            </button>
           )}
-        </Group>
+        </div>
 
         {Object.keys(errors).length > 0 && (
-          <Alert color="red" mt="md" variant="light" title="Respuestas faltantes">
+          <div
+            role="alert"
+            style={{
+              marginTop: 'clamp(12px, 2vmin, 24px)',
+              background: '#fff5f5',
+              border: '1px solid #ffc9c9',
+              color: '#c92a2a',
+              borderRadius: 12,
+              padding: 'clamp(10px, 1.6vmin, 18px)',
+              fontSize: 'clamp(12px, 2.2vmin, 26px)',
+              fontWeight: 600,
+            }}
+          >
+            <div style={{ fontWeight: 800, marginBottom: 6, fontSize: 'clamp(13px, 2.4vmin, 28px)' }}>
+              Respuestas faltantes
+            </div>
             Por favor completa las preguntas marcadas antes de continuar.
-          </Alert>
+          </div>
         )}
-      </Box>
-
-      {/* Barra fija inferior */}
-      <Box
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          padding: '10px 16px',
-          background:
-            'linear-gradient(180deg, rgba(47,53,55,0) 0%, rgba(47,53,55,0.75) 24%, rgba(47,53,55,0.95) 100%)',
-          backdropFilter: 'blur(4px)',
-        }}
-      >
-        <Group justify="space-between" align="center">
-          <Text size="sm" c="gray.1">
-            {progress}% completo
-          </Text>
-          <Progress value={progress} w={160} />
-        </Group>
-      </Box>
-    </Box>
+      </div>
+    </section>
   );
 }
