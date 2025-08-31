@@ -1,37 +1,37 @@
 /* eslint-disable no-console */
+// src/pages/HomePage.tsx
 import { useEffect, useState } from 'react';
 import ChatPage from '@/components/ChatPage';
 import EncuestaPage from '@/components/EncuestaPage';
 import { MenuOpciones } from '@/components/MenuOpciones';
 import SurveyAnonIntro from '@/components/SurveyAnonIntro';
 import Welcome from '@/components/Welcome';
+import CasosPage from '@/components/CasosPage';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebaseClient';
 
 type View = 'welcome' | 'surveyIntro' | 'menu' | 'encuesta' | 'agente' | 'casos' | 'uso';
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', fontSize: 24 }}>
-      {title}
-    </div>
-  );
-}
 
 export function HomePage() {
   const [view, setView] = useState<View>('welcome');
   const [userId, setUserId] = useState<string | null>(null);
   const [shortId, setShortId] = useState<string | null>(null);
 
-  // Cuando entramos al intro de encuesta, saltamos al menú a los 5s
+  // Auto-salto de intro encuesta -> menú
   useEffect(() => {
-    if (view !== 'surveyIntro') {
-      return;
-    }
-    const t = setTimeout(() => setView('menu'), 5000);
+    if (view !== 'surveyIntro') {return;}
+    const t = setTimeout(() => setView('encuesta'), 5000);
     return () => clearTimeout(t);
   }, [view]);
 
+  const restartToWelcome = async () => {
+    try { await signOut(auth); } catch (e) { /* noop */ }
+    setUserId(null);
+    setShortId(null);
+    setView('welcome');
+  };
+
   if (view === 'welcome') {
-    // IMPORTANTE: Welcome debe llamar onDone(data, uid, shortId) al enviar
     return (
       <Welcome
         onDone={(_, uid, sid) => {
@@ -44,8 +44,7 @@ export function HomePage() {
   }
 
   if (view === 'surveyIntro') {
-    // Pantalla “La encuesta es anónima…”
-    return <SurveyAnonIntro onNext={() => setView('menu')} />;
+    return <SurveyAnonIntro onNext={() => setView('encuesta')} />;
   }
 
   if (view === 'menu') {
@@ -64,11 +63,16 @@ export function HomePage() {
   }
 
   if (view === 'agente') {
-    return <ChatPage mode="agente" />;
+    return <ChatPage mode="agente" onTimeout={restartToWelcome} />;
   }
 
   if (view === 'casos') {
-    return <Placeholder title="Página: Casos de referencia" />;
+    return (
+      <CasosPage
+        onMenu={() => setView('menu')}
+        onRestart={restartToWelcome}
+      />
+    );
   }
 
   return null;

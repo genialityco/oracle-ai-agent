@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 /* eslint-disable no-console */
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
@@ -9,7 +10,6 @@ import {
   ScrollArea,
   Text,
   Title,
-  Accordion,
 } from '@mantine/core';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebaseClient';
@@ -61,8 +61,6 @@ export default function ChatPage({ mode, ragUrl, onTimeout }: ChatProps) {
     headerTitle: 'clamp(28px, 4.5vw, 72px)',
     headerSubtitle: 'clamp(16px, 3.5vw, 40px)',
     bubbleText: 'clamp(16px, 4vw, 36px)',
-    refTitle: 'clamp(16px, 3.4vw, 32px)',
-    refText: 'clamp(14px, 3vw, 28px)',
     textarea: 'clamp(16px, 4vw, 34px)',
     button: 'clamp(18px, 4.2vw, 36px)',
     countdown: 'clamp(14px, 3.2vw, 28px)',
@@ -144,113 +142,83 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
     }
   };
 
-  // ======= Inactividad con contador visible =======
-  const IDLE_TOTAL = 10; // segundos
-  const [idleLeft, setIdleLeft] = useState<number | null>(null);
-  const idleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ======= Inactividad: dos fases controladas por interacción global =======
+  // Fase 1: 10s sin interacción => mostrar overlay de redirección (fase 2).
+  // Fase 2: overlay visible con cuenta 10..0 => signOut + redirect si llega a 0.
+  type IdlePhase = 'idle' | 'redirect' | 'off';
+  const [idlePhase, setIdlePhase] = useState<IdlePhase>('off');
+  const [redirectLeft, setRedirectLeft] = useState<number>(10);
 
-  const clearIdle = () => {
-    if (idleIntervalRef.current) { clearInterval(idleIntervalRef.current); idleIntervalRef.current = null; }
-    if (idleTimeoutRef.current) { clearTimeout(idleTimeoutRef.current); idleTimeoutRef.current = null; }
-    setIdleLeft(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const redirectIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearAllIdle = () => {
+    if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null; }
+    if (redirectTimerRef.current) { clearTimeout(redirectTimerRef.current); redirectTimerRef.current = null; }
+    if (redirectIntervalRef.current) { clearInterval(redirectIntervalRef.current); redirectIntervalRef.current = null; }
+    setIdlePhase('off');
   };
 
-  const handleTimeout = async () => {
-    try { await signOut(auth); } catch (e) { console.error('Error al cerrar sesión:', e); }
-    finally { onTimeout ? onTimeout() : (window.location.href = '/'); }
+  const startIdlePhase1 = () => {
+    // comienza a contar 10s desde la última interacción
+    if (idleTimerRef.current) {clearTimeout(idleTimerRef.current);}
+    setIdlePhase('idle');
+    idleTimerRef.current = setTimeout(() => {
+      // pasa a fase de redirección
+      startRedirectPhase();
+    }, 10_000);
   };
 
-  const startIdleAfterLastMessage = () => {
-    // No contar mientras esperamos respuesta
-    if (loading) {return;}
-    clearIdle();
-    setIdleLeft(IDLE_TOTAL);
-    // intervalo visible
-    idleIntervalRef.current = setInterval(() => {
-      setIdleLeft((prev) => {
-        if (prev == null) {return null;}
-        return prev > 0 ? prev - 1 : 0;
-      });
+  const startRedirectPhase = () => {
+    // muestra overlay con countdown 10..0
+    setIdlePhase('redirect');
+    setRedirectLeft(10);
+    if (redirectIntervalRef.current) {clearInterval(redirectIntervalRef.current);}
+    if (redirectTimerRef.current) {clearTimeout(redirectTimerRef.current);}
+
+    redirectIntervalRef.current = setInterval(() => {
+      setRedirectLeft((s) => (s > 0 ? s - 1 : 0));
     }, 1000);
-    // timeout final
-    idleTimeoutRef.current = setTimeout(handleTimeout, IDLE_TOTAL * 1000);
+
+    redirectTimerRef.current = setTimeout(async () => {
+      try { await signOut(auth); } catch (e) { console.error('Error al cerrar sesión:', e); }
+      finally { onTimeout ? onTimeout() : (window.location.href = '/'); }
+    }, 10_000);
   };
 
-  // 1) Inicia/renueva el contador cada vez que llega un MENSAJE nuevo (user o bot) y no hay loading
-  useEffect(() => {
-    if (messages.length === 0) {return;}
-    startIdleAfterLastMessage();
-  }, [messages, loading]);
+  // Acción global de actividad: resetea a fase 1 (y oculta overlay si estaba)
+  const onAnyActivity = () => {
+    // Solo respondemos a click/touch/keydown (no mousemove/scroll)
+    clearAllIdle();
+    startIdlePhase1();
+  };
 
-  // 2) Cualquier interacción del usuario CANCELA el contador (y NO redirige).
+  // Listeners globales
   useEffect(() => {
-    const stopOnActivity = () => clearIdle();
-    const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
-    events.forEach((ev) => window.addEventListener(ev, stopOnActivity, { passive: true } as any));
+    const onClick = () => onAnyActivity();
+    const onKey = () => onAnyActivity();
+    const onTouch = () => onAnyActivity();
+
+    window.addEventListener('click', onClick, { passive: true } as any);
+    window.addEventListener('keydown', onKey as any);
+    window.addEventListener('touchstart', onTouch, { passive: true } as any);
+
+    // Al entrar a la pantalla: empezar a contar 10s
+    startIdlePhase1();
+
     return () => {
-      events.forEach((ev) => window.removeEventListener(ev, stopOnActivity as any));
+      window.removeEventListener('click', onClick as any);
+      window.removeEventListener('keydown', onKey as any);
+      window.removeEventListener('touchstart', onTouch as any);
+      clearAllIdle();
     };
   }, []);
-
-  // ======= Render de referencias =======
-  const renderReferences = (refs?: Array<string | RefWithMeta>) => {
-    if (!refs?.length) {return null;}
-    return (
-      <>
-        <Text mt="sm" mb="xs" style={{ fontSize: FS.refTitle, fontWeight: 700 }}>Referencias:</Text>
-        <Accordion styles={{ control: { fontSize: FS.refTitle, paddingBlock: '8px' }, panel: { fontSize: FS.refText } }}>
-          {refs.map((ref, idx) => {
-            const isString = typeof ref === 'string';
-            const key = isString ? `ref-${idx}` : (ref as RefWithMeta).id ?? `ref-${idx}`;
-            const title = isString
-              ? `Fragmento ${idx + 1}`
-              : `${(ref as RefWithMeta).file ?? 'Documento'}${
-                  (ref as RefWithMeta).page != null ? ` — pág. ${(ref as RefWithMeta).page}` : ''
-                }`;
-            const paragraph = isString ? (ref as string) : (ref as RefWithMeta).paragraph || '';
-            return (
-              <Accordion.Item value={key} key={key}>
-                <Accordion.Control>{title}</Accordion.Control>
-                <Accordion.Panel>
-                  <Text style={{ whiteSpace: 'pre-wrap', fontSize: FS.refText }}>
-                    {paragraph || (isString ? (ref as string) : 'Sin texto disponible')}
-                  </Text>
-                  {!isString && (ref as RefWithMeta).file_url ? (
-                    <button
-                      type="button"
-                      onClick={() => window.open((ref as RefWithMeta).file_url!, '_blank')}
-                      style={{
-                        marginTop: '0.6em',
-                        fontSize: FS.button,
-                        padding: `${SIZE.sendPadV} ${SIZE.sendPadH}`,
-                        fontWeight: 700,
-                        borderRadius: SIZE.radius,
-                        border: '1px solid #E0E0E0',
-                        background: '#FFFFFF',
-                        color: '#2F3537',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Ver documento
-                    </button>
-                  ) : null}
-                </Accordion.Panel>
-              </Accordion.Item>
-            );
-          })}
-        </Accordion>
-      </>
-    );
-  };
 
   // ======= Envío =======
   const sendMessage = async () => {
     const q = input.trim();
     if (!q || loading) {return;}
-
-    // Al enviar, también cancelamos cualquier countdown activo
-    clearIdle();
 
     setMessages((prev) => [...prev, { role: 'user', content: q }]);
     setInput('');
@@ -279,7 +247,7 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
           'env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)',
       }}
     >
-      {/* ===== Encabezado: logo arriba, luego textos ===== */}
+      {/* ===== Encabezado ===== */}
       <Box pt={40} pl={80} pr={20}>
         <img
           src="/logo_bo25b.png"
@@ -301,8 +269,6 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
         <Box pb={8}>
           {messages.map((msg, i) => {
             const isUser = msg.role === 'user';
-            const isLastBot = !isUser && i === messages.length - 1;
-
             return (
               <Group
                 key={i}
@@ -313,7 +279,7 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
                 gap={SIZE.gap as any}
                 pl={isUser ? 0 : 4}
               >
-                {/* Avatar neutro SIN imagen para el bot */}
+                {/* Punto neutro (sin imagen) para bot */}
                 {!isUser && (
                   <div
                     aria-hidden
@@ -343,42 +309,6 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
                   <Text style={{ whiteSpace: 'pre-wrap', fontSize: FS.bubbleText }}>
                     {msg.content}
                   </Text>
-
-                  {/* Referencias */}
-                  {msg.role === 'bot' && msg.references?.length ? renderReferences(msg.references) : null}
-
-                  {/* Sugerencias del último bot */}
-                  {isLastBot && lastFollow && (lastFollow.opciones?.length || lastFollow.gancho) ? (
-                    <div style={{ marginTop: '0.8em' }}>
-                      {lastFollow.opciones?.length ? (
-                        <Group gap="xs" wrap="wrap">
-                          {lastFollow.opciones.map((op) => (
-                            <button
-                              key={op.id}
-                              type="button"
-                              onClick={async () => {
-                                clearIdle(); // interacción: cancela countdown
-                                setMessages((prev) => [...prev, { role: 'user', content: op.titulo }]);
-                                await askRag(op.query_sugerida);
-                              }}
-                              style={{
-                                fontSize: FS.button,
-                                padding: `${SIZE.sendPadV} ${SIZE.sendPadH}`,
-                                fontWeight: 600,
-                                borderRadius: SIZE.radius,
-                                border: '1px solid #E0E0E0',
-                                background: '#FFFFFF',
-                                color: '#2F3537',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              {op.titulo}
-                            </button>
-                          ))}
-                        </Group>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </Paper>
               </Group>
             );
@@ -411,7 +341,7 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
         <Group align="flex-end" gap={SIZE.gap as any}>
           <textarea
             value={input}
-            onChange={(e) => { setInput(e.currentTarget.value); clearIdle(); /* escribir = actividad */ }}
+            onChange={(e) => { setInput(e.currentTarget.value); onAnyActivity(); }}
             placeholder="Escribe tu mensaje y presiona Enter…"
             rows={1}
             style={{
@@ -432,7 +362,7 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
           />
           <button
             type="button"
-            onClick={() => { clearIdle(); sendMessage(); }}
+            onClick={() => { onAnyActivity(); sendMessage(); }}
             disabled={loading}
             style={{
               fontSize: FS.button,
@@ -452,26 +382,47 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
         </Group>
       </Box>
 
-      {/* ===== Banner de cuenta regresiva (solo visible si idleLeft !== null) ===== */}
-      {idleLeft !== null && (
+      {/* ===== Overlay de inactividad (solo fase redirect) ===== */}
+      {idlePhase === 'redirect' && (
         <div
-          role="status"
+          role="dialog"
           aria-live="polite"
+          aria-modal="true"
+          tabIndex={-1}
           style={{
             position: 'fixed',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            bottom: '14px',
-            background: 'rgba(0,0,0,0.75)',
-            color: '#fff',
-            padding: '8px 14px',
-            borderRadius: 999,
-            fontWeight: 700,
-            fontSize: FS.countdown,
-            boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 1000,
+            padding: 24,
           }}
+          onClick={onAnyActivity}
+          onKeyDown={(e) => { if (e.key) {onAnyActivity();} }}
+          onTouchStart={onAnyActivity}
         >
-          No hay actividad, cerrando sesión en {idleLeft}…
+          <div
+            style={{
+              background: '#111',
+              color: '#fff',
+              padding: '22px 26px',
+              borderRadius: 16,
+              boxShadow: '0 12px 30px rgba(0,0,0,0.35)',
+              textAlign: 'center',
+              maxWidth: 560,
+            }}
+          >
+            <h3 style={{ margin: 0, fontSize: FS.headerSubtitle, fontWeight: 800 }}>
+              Inactividad detectada
+            </h3>
+            <p style={{ margin: '10px 0 0', fontSize: FS.countdown }}>
+              Serás redirigido al inicio en <strong>{redirectLeft}</strong> segundos…
+            </p>
+            <p style={{ margin: '10px 0 0', fontSize: FS.countdown, opacity: 0.9 }}>
+              Toca, haz clic o presiona una tecla para continuar.
+            </p>
+          </div>
         </div>
       )}
     </Box>
