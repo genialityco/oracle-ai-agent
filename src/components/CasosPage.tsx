@@ -73,7 +73,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
           window.location.href = '/';
         }
       }, 10_000);
-    }, 10_000);
+    }, 120_000);
   };
 
   const onAnyActivity = () => {

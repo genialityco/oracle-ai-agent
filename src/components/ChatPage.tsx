@@ -167,7 +167,7 @@ Si no hay buenas opciones, usa {"gancho":"¿Quieres profundizar en algo?","opcio
     idleTimerRef.current = setTimeout(() => {
       // pasa a fase de redirección
       startRedirectPhase();
-    }, 10_000);
+    }, 120_000);
   };
 
   const startRedirectPhase = () => {
