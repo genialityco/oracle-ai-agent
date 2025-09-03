@@ -68,7 +68,7 @@ export function HomePage() {
             color: 'white',
             position: 'absolute',
             bottom: 0,
-            right: 0,
+            right: 0,   
             zIndex: 9000,
             fontSize: '2em',
             margin: '1em',
@@ -117,7 +117,7 @@ export function HomePage() {
           style={{
             color: 'white',
             position: 'absolute',
-            bottom: 0,
+            top: 0,
             right: 0,
             zIndex: 9000,
             fontSize: '2em',
