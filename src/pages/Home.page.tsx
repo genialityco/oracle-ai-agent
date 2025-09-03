@@ -86,7 +86,7 @@ export function HomePage() {
         <EncuestaPage
           onSubmit={(answers) => {
             console.log('OK', answers, { userId, shortId });
-            setView('menu');
+            setView('welcome');
           }}
         />
         <div
@@ -100,9 +100,7 @@ export function HomePage() {
             margin: '1em',
           }}
         >
-          <span onClick={() => setView('menu')} style={{ marginRight: '1em' }}>
-            Menú{' '}
-          </span>
+
           <span onClick={() => setView('welcome')}>Reiniciar</span>{' '}
         </div>
       </>
@@ -124,9 +122,7 @@ export function HomePage() {
             margin: '1em',
           }}
         >
-          <span onClick={() => setView('menu')} style={{ marginRight: '1em' }}>
-            Menú{' '}
-          </span>
+
           <span onClick={() => setView('welcome')}>Reiniciar</span>{' '}
         </div>
       </>
@@ -148,9 +144,7 @@ export function HomePage() {
             margin: '1em',
           }}
         >
-          <span onClick={() => setView('menu')} style={{ marginRight: '1em' }}>
-            Menú{' '}
-          </span>
+
           <span onClick={() => setView('welcome')}>Reiniciar</span>{' '}
         </div>
       </>
