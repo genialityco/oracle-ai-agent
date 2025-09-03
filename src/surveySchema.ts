@@ -208,23 +208,23 @@ export const SURVEY: Question[] = [
     options: ['1', '2', '3', '4', '5'],
   },
 
-  // Bloque G (abiertas)
-  {
-    section: 'Bloque G: Preguntas abiertas',
-    id: 'G1',
-    text: 'Pensando específicamente en los empleados, ¿cuál es el principal reto que ves para la adopción de IA en tu empresa?',
-    type: 'long_text',
-  },
-  {
-    section: 'Bloque G: Preguntas abiertas',
-    id: 'G2',
-    text: 'Más allá de métricas de eficiencia o ventas, ¿de qué manera la IA podría contribuir al propósito estratégico de tu empresa?',
-    type: 'long_text',
-  },
-  {
-    section: 'Bloque G: Preguntas abiertas',
-    id: 'G3',
-    text: '¿Desearías compartir alguna expectativa o idea que te entusiasme respecto a IA en tu organización?',
-    type: 'long_text',
-  },
+  // // Bloque G (abiertas)
+  // {
+  //   section: 'Bloque G: Preguntas abiertas',
+  //   id: 'G1',
+  //   text: 'Pensando específicamente en los empleados, ¿cuál es el principal reto que ves para la adopción de IA en tu empresa?',
+  //   type: 'long_text',
+  // },
+  // {
+  //   section: 'Bloque G: Preguntas abiertas',
+  //   id: 'G2',
+  //   text: 'Más allá de métricas de eficiencia o ventas, ¿de qué manera la IA podría contribuir al propósito estratégico de tu empresa?',
+  //   type: 'long_text',
+  // },
+  // {
+  //   section: 'Bloque G: Preguntas abiertas',
+  //   id: 'G3',
+  //   text: '¿Desearías compartir alguna expectativa o idea que te entusiasme respecto a IA en tu organización?',
+  //   type: 'long_text',
+  // },
 ];
