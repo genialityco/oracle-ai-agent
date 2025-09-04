@@ -14,9 +14,10 @@ import {
   setDoc,
   serverTimestamp,
   collection,
-  addDoc,            // 👈 importa addDoc
+  addDoc,            // 👈 importa addDocrevisa
 } from 'firebase/firestore';
 
+/// <reference types="vite/client" >
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
