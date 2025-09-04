@@ -110,7 +110,7 @@ export function HomePage() {
   if (view === 'agente') {
     return (
       <>
-        <ChatPage mode="agente" onTimeout={restartToWelcome} />
+        <ChatPage mode="agente" />
         <div
           style={{
             color: 'white',

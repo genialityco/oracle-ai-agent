@@ -5,10 +5,13 @@ import { Box, Group, Text } from '@mantine/core';
 
 type Caso = { nombre: string; url: string };
 
+type Lang = 'es' | 'en';
+
 type Props = {
   onMenu?: () => void; // ← volver al menú
   onRestart?: () => void; // ← cerrar sesión + volver al inicio
   casos?: Caso[];
+  lang?: Lang; // ← NUEVO
 };
 
 const CASOS_DEF: Caso[] = [
@@ -27,7 +30,68 @@ const CASOS_DEF: Caso[] = [
   },
 ];
 
-export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Props) {
+/* =======================
+   DICCIONARIO DE TEXTOS
+   ======================= */
+const LABELS = {
+  es: {
+    logoAlt: 'Logo',
+    // Título (mantengo <br/> con el mismo layout)
+    title: (
+      <>
+        Conoce los casos
+        <br />
+        de éxito con AI
+        <br />
+        en México
+      </>
+    ),
+    openCaseAria: (n: string) => `Abrir caso: ${n}`,
+    overlayAria: (n: string) => `Caso: ${n}`,
+    close: 'Cerrar',
+    menu: 'Menú',
+    restart: 'Reiniciar',
+    idleTitle: 'Inactividad detectada',
+    idleMsg1: (s: number) => (
+      <>
+        Serás redirigido al inicio en <strong>{s}</strong> segundos…
+      </>
+    ),
+    idleMsg2: 'Toca, haz clic o presiona una tecla para continuar.',
+  },
+  en: {
+    logoAlt: 'Logo',
+    title: (
+      <>
+        Explore success
+        <br />
+        stories with AI
+        <br />
+        in Mexico
+      </>
+    ),
+    openCaseAria: (n: string) => `Open case: ${n}`,
+    overlayAria: (n: string) => `Case: ${n}`,
+    close: 'Close',
+    menu: 'Menu',
+    restart: 'Restart',
+    idleTitle: 'Inactivity detected',
+    idleMsg1: (s: number) => (
+      <>
+        You will be redirected to the home in <strong>{s}</strong> seconds…
+      </>
+    ),
+    idleMsg2: 'Tap, click, or press a key to continue.',
+  },
+} as const;
+
+export default function CasosPage({
+  onMenu,
+  onRestart,
+  casos = CASOS_DEF,
+  lang = 'es', // ← NUEVO
+}: Props) {
+  const t = LABELS[lang];
   const [open, setOpen] = useState<null | Caso>(null);
 
   // ==================== INACTIVIDAD (fase 1: 10s, fase 2: overlay 10s) ====================
@@ -82,14 +146,12 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
   };
 
   useEffect(() => {
-    // listeners (solo click/keydown/touchstart)
     const onClick = () => onAnyActivity();
     const onKey = () => onAnyActivity();
     const onTouch = () => onAnyActivity();
     window.addEventListener('click', onClick, { passive: true } as any);
     window.addEventListener('keydown', onKey as any);
     window.addEventListener('touchstart', onTouch, { passive: true } as any);
-    // al entrar, arrancar los 10s
     startIdlePhase1();
     return () => {
       window.removeEventListener('click', onClick as any);
@@ -145,7 +207,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
       <Box pt={40} pl={80} pr={20}>
         <img
           src="/logo_bo25b.png"
-          alt="Logo"
+          alt={t.logoAlt}
           style={{
             height: 'clamp(48px, 20vw, 200px)',
             width: 'auto',
@@ -156,11 +218,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
 
         <Box mt={45} mb={8}>
           <Text fw={500} style={{ fontSize: FS.title, lineHeight: 1.2, margin: 0 }}>
-            Conoce los casos
-            <br />
-            de éxito con AI
-            <br />
-            en México
+            {t.title}
           </Text>
         </Box>
       </Box>
@@ -189,7 +247,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
               cursor: 'pointer',
               padding: '8px 4px',
             }}
-            aria-label={`Abrir caso: ${c.nombre}`}
+            aria-label={t.openCaseAria(c.nombre)}
           >
             {arrowIcon()}
             <Text style={{ fontSize: FS.item, fontWeight: 700 }}>{c.nombre}</Text>
@@ -202,7 +260,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`Caso: ${open.nombre}`}
+          aria-label={t.overlayAria(open.nombre)}
           style={{
             position: 'fixed',
             inset: 0,
@@ -255,7 +313,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
                   cursor: 'pointer',
                 }}
               >
-                Cerrar
+                {t.close}
               </button>
             </Group>
             <iframe
@@ -277,7 +335,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
           right: 0,
           display: 'flex',
           justifyContent: 'flex-end',
-          padding : '12px 24px',
+          padding: '12px 24px',
           gap: 'clamp(12px, 3vmin, 28px)',
           zIndex: 900,
         }}
@@ -296,7 +354,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
             boxShadow: '0 1px 0 rgba(0,0,0,0.08)',
           }}
         >
-          Menú
+          {t.menu}
         </button>
 
         <button
@@ -313,7 +371,7 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
             boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
           }}
         >
-          Reiniciar
+          {t.restart}
         </button>
       </Box>
 
@@ -353,13 +411,13 @@ export default function CasosPage({ onMenu, onRestart, casos = CASOS_DEF }: Prop
             }}
           >
             <h3 style={{ margin: 0, fontSize: FS.overlayTitle, fontWeight: 800 }}>
-              Inactividad detectada
+              {t.idleTitle}
             </h3>
             <p style={{ margin: '10px 0 0', fontSize: FS.countdown }}>
-              Serás redirigido al inicio en <strong>{redirectLeft}</strong> segundos…
+              {t.idleMsg1(redirectLeft)}
             </p>
             <p style={{ margin: '10px 0 0', fontSize: FS.countdown, opacity: 0.9 }}>
-              Toca, haz clic o presiona una tecla para continuar.
+              {t.idleMsg2}
             </p>
           </div>
         </div>

@@ -1,11 +1,52 @@
+/* src/components/MenuOpciones.tsx */
 import { Box, Text, Title } from '@mantine/core';
 
 type MenuKey = 'encuesta' | 'agente' | 'casos' | 'uso';
+type Lang = 'es' | 'en';
+
 type MenuOpcionesProps = {
   onSelect: (key: MenuKey) => void;
+  lang?: Lang;
 };
 
-export function MenuOpciones({ onSelect }: MenuOpcionesProps) {
+// Diccionario de textos
+const LABELS = {
+  es: {
+    altLogo: 'Bimbo + Oracle 25 años',
+    headerTop: 'Cuéntanos,',
+    headerTitle: (
+      <>
+        ¿Qué quieres
+        <br />
+        descubrir primero?
+      </>
+    ),
+    encuesta: ['Encuesta de madurez digital', 'de Grupo Bimbo'],
+    agente: ['Platica con', 'un Agente AI'],
+    casos: ['Casos', 'de éxito'],
+    // Preparado por si luego muestras el cuarto ítem:
+    uso: ['Guía de', 'buen uso de IA'],
+  },
+  en: {
+    altLogo: 'Bimbo + Oracle 25 years',
+    headerTop: 'Tell us,',
+    headerTitle: (
+      <>
+        What would you
+        <br />
+        like to explore first?
+      </>
+    ),
+    encuesta: ['Digital maturity survey', 'of Grupo Bimbo'],
+    agente: ['Chat with', 'an AI Agent'],
+    casos: ['Success', 'stories'],
+    uso: ['AI usage', 'guidelines'],
+  },
+};
+
+export function MenuOpciones({ onSelect, lang = 'es' }: MenuOpcionesProps) {
+  const t = LABELS[lang];
+
   // Flecha amarilla (igual que antes)
   const Arrow = () => (
     <svg
@@ -30,7 +71,7 @@ export function MenuOpciones({ onSelect }: MenuOpcionesProps) {
   function MenuItem({
     lines,
     onClick,
-    offsetVmin = 0, // ← nuevo
+    offsetVmin = 0,
   }: {
     lines: string[];
     onClick: () => void;
@@ -94,7 +135,7 @@ export function MenuOpciones({ onSelect }: MenuOpcionesProps) {
       {/* Logo superior izquierda (igual a Welcome) */}
       <img
         src="/logo_bo25.png"
-        alt="Bimbo + Oracle 25 años"
+        alt={t.altLogo}
         style={{
           position: 'absolute',
           top: 'clamp(12px, 1.6vmin, 28px)',
@@ -103,7 +144,7 @@ export function MenuOpciones({ onSelect }: MenuOpcionesProps) {
           objectFit: 'contain',
           pointerEvents: 'none',
           userSelect: 'none',
-          margin: "4%"
+          margin: '4%',
         }}
       />
 
@@ -140,7 +181,7 @@ export function MenuOpciones({ onSelect }: MenuOpcionesProps) {
             fontWeight: 500,
           }}
         >
-          Cuéntanos,
+          {t.headerTop}
         </Text>
         <Title
           order={1}
@@ -151,9 +192,7 @@ export function MenuOpciones({ onSelect }: MenuOpcionesProps) {
             margin: 0,
           }}
         >
-          ¿Qué quieres
-          <br />
-          descubrir primero?
+          {t.headerTitle}
         </Title>
       </Box>
 
@@ -167,17 +206,12 @@ export function MenuOpciones({ onSelect }: MenuOpcionesProps) {
           rowGap: 'clamp(12px, 2.2vmin, 28px)',
         }}
       >
-        <MenuItem
-          lines={['Encuesta de madurez digital', 'de Grupo Bimbo']}
-          offsetVmin={0}
-          onClick={() => onSelect('encuesta')}
-        />
-        <MenuItem
-          lines={['Platica con', 'un Agente AI']}
-          offsetVmin={18}
-          onClick={() => onSelect('agente')}
-        />
-        <MenuItem lines={['Casos', 'de éxito']} offsetVmin={35} onClick={() => onSelect('casos')} />
+        <MenuItem lines={t.encuesta} offsetVmin={0} onClick={() => onSelect('encuesta')} />
+        <MenuItem lines={t.agente} offsetVmin={18} onClick={() => onSelect('agente')} />
+        <MenuItem lines={t.casos} offsetVmin={35} onClick={() => onSelect('casos')} />
+        {/* Si más adelante agregas el cuarto ítem:
+        <MenuItem lines={t.uso} offsetVmin={50} onClick={() => onSelect('uso')} />
+        */}
       </Box>
     </Box>
   );
